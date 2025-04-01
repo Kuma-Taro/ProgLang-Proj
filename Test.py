@@ -9,7 +9,7 @@ class BrainrotLexer(Lexer):
         EQ, NE, LT, GT, LTE, GTE, ASSIGN,
 
         # Implemented brainrot keywords
-        HAWK, TUAH, GOON, FRFR, YEET, CAP, NOCAP, VIBING, EDGE
+        HAWK, TUAH, GOON, FRFR, YEET, CAP, NOCAP, VIBING, EDGE, ONG
     }
 
     ignore = ' \t'
@@ -48,6 +48,7 @@ class BrainrotLexer(Lexer):
     NOCAP = r'nocap'
     VIBING = r'vibing'
     EDGE = r'edge'
+    ONG = r'ong'
 
     # Identifier
     ID = r'[a-zA-Z_][a-zA-Z0-9_]*'
@@ -109,7 +110,7 @@ class BrainrotParser(Parser):
     # Statements
     @_('TUAH LPAREN expr RPAREN')
     def statement(self, p):
-        #print(f"➡️ Result: {p.expr}")  # ✅ Always print the result
+        print(f"➡️ Result: {p.expr}")  # ✅ Always print the result
         return p.expr
 
     @_('HAWK LPAREN RPAREN')
@@ -134,6 +135,7 @@ class BrainrotParser(Parser):
 
     @_('ID ASSIGN expr')
     def statement(self, p):
+        print(f"DEBUG: Assigning {p.ID} = {p.expr}")
         self.env[p.ID] = p.expr
         return None
 
@@ -142,38 +144,35 @@ class BrainrotParser(Parser):
         self.env[p.ID] = p.STRING  # Store string with quotes
         return None
 
-    # Original if statement without else
-    @_('GOON expr COLON NEWLINE statements')
+    # Updated GOON statement to update the environment
+    @_('GOON expr COLON NEWLINE statements ONG')
     def statement(self, p):
         print(f"Processing GOON statement: {p}")
-        if p.expr:
+        if p.expr:  # If GOON condition is True
             for stmt in p.statements:
                 if stmt is not None:
-                    return stmt
+                    result = stmt  # ✅ Assign each statement but don't return early.
+            print("Is true, iscap should be true then")
+            return result  # Return the result if true
         return None
 
     # Handle GOON followed by EDGE (if GOON condition fails)
-    @_('GOON expr COLON NEWLINE statements EDGE COLON NEWLINE statements')
+    @_('GOON expr COLON NEWLINE statements EDGE COLON NEWLINE statements ONG')
     def statement(self, p):
-        print(f"Processing GOON statement: {p}")
-
-        # Evaluate GOON condition
         condition = bool(p.expr)
-        result = None  # Track the last executed statement
+        result = None
 
-        # If GOON condition is True, process the first block
         if condition:
-            for stmt in p.statements0:
+            for stmt in p.statements0:  # Handle statements in GOON block
                 if stmt is not None:
-                    result = stmt
+                    result = stmt  # ✅ Assign each statement but don't return early.
+            print("Is true, iscap should be true then")
+            return result
         else:
-            # If GOON condition is False, process the EDGE block
-            print("test if the edge still running despite true")
-            for stmt in p.statements1:
+            for stmt in p.statements1:  # Handle statements in EDGE block
                 if stmt is not None:
                     result = stmt
-
-        return result  # Return the result from either GOON or EDGE block
+            return result
 
     @_('FRFR ID VIBING expr COLON NEWLINE statements')
     def statement(self, p):
@@ -224,7 +223,9 @@ class BrainrotParser(Parser):
 
     @_('expr EQ expr')
     def expr(self, p):
-        return p.expr0 == p.expr1
+        result = p.expr0 == p.expr1
+        print(f"DEBUG: {p.expr0} == {p.expr1} → {result}")  # ✅ Debug output
+        return result
 
     @_('expr NE expr')
     def expr(self, p):
