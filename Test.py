@@ -1,10 +1,9 @@
 from sly import Lexer, Parser
 
-
 class BrainrotLexer(Lexer):
     tokens = {
         # Core tokens
-        TUAH, STRING, NUMBER, ID, NEWLINE,
+        HAWK, TUAH, STRING, NUMBER, ID, NEWLINE,
         LPAREN, RPAREN, COLON,
         PLUS, MINUS, MULT, DIV,
         EQ, NE, LT, GT, LTE, GTE, ASSIGN,
@@ -18,7 +17,7 @@ class BrainrotLexer(Lexer):
 
     # Literals
     STRING = r'\"([^\\\"]|\\.)*\"'
-    NUMBER = r'\d+'
+    NUMBER = r'\d+\.\d*|\d+'
     NEWLINE = r'\n+'
 
     # Operators
@@ -40,6 +39,7 @@ class BrainrotLexer(Lexer):
     COLON = r':'
 
     # Implemented keywords
+    HAWK = r'hawk'
     TUAH = r'tuah'
     GOON = r'goon'
     FRFR = r'frfr'
@@ -100,19 +100,26 @@ class BrainrotParser(Parser):
         return p.statements
 
     # Statements
+
     @_('TUAH LPAREN expr RPAREN')
     def statement(self, p):
         value = p.expr
         if isinstance(value, str) and value.startswith('"') and value.endswith('"'):
-            print(value[1:-1])
+            # print(value[1:-1])
+            return value[1:-1]
         else:
-            print(value)
-        return None
+            return value
 
+    @_('HAWK LPAREN RPAREN')
+    def statement(self, p):
+        user_input = input("BRAINROT>>")
+        return f'"{user_input}"'
+
+    """
     @_('TUAH LPAREN STRING RPAREN')
     def statement(self, p):
-        print(p.STRING[1:-1])
-        return None
+        # print(p.STRING[1:-1])
+        return p.STRING[1:-1]"""
 
     @_('ID ASSIGN expr')
     def statement(self, p):
@@ -206,6 +213,8 @@ class BrainrotParser(Parser):
 
     @_('NUMBER')
     def expr(self, p):
+        if '.' in p.NUMBER:
+            return float(p.NUMBER)
         return int(p.NUMBER)
 
     @_('STRING')
@@ -224,6 +233,10 @@ class BrainrotParser(Parser):
     def expr(self, p):
         return "nocap"
 
+    @_('HAWK LPAREN RPAREN')
+    def expr(self, p):
+        user_input = input("BRAINROT>>")
+        return f'"{user_input}"'
 
 # REPL Interface
 lexer = BrainrotLexer()
@@ -253,7 +266,9 @@ while True:
                 result = parser.parse(lexer.tokenize(full_code + "\n"))
                 if result:
                     # Changed to print the actual result instead of the list
-                    if isinstance(result, list) and len(result) > 0:
+                    if isinstance(result, str):
+                        print(f"➡️ Result: {result}")
+                    elif isinstance(result, list) and len(result) > 0:
                         print(f"➡️ Result: {result[0]}")
                     else:
                         print(f"➡️ Result: {result}")
