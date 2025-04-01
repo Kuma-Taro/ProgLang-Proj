@@ -102,7 +102,11 @@ class BrainrotParser(Parser):
     # Statements
     @_('TUAH LPAREN expr RPAREN')
     def statement(self, p):
-        print(p.expr)
+        value = p.expr
+        if isinstance(value, str) and value.startswith('"') and value.endswith('"'):
+            print(value[1:-1])
+        else:
+            print(value)
         return None
 
     @_('TUAH LPAREN STRING RPAREN')
@@ -113,6 +117,11 @@ class BrainrotParser(Parser):
     @_('ID ASSIGN expr')
     def statement(self, p):
         self.env[p.ID] = p.expr
+        return None
+
+    @_('ID ASSIGN STRING')
+    def statement(self, p):
+        self.env[p.ID] = p.STRING  # Store string with quotes
         return None
 
     # Original if statement without else
@@ -198,6 +207,10 @@ class BrainrotParser(Parser):
     @_('NUMBER')
     def expr(self, p):
         return int(p.NUMBER)
+
+    @_('STRING')
+    def expr(self, p):
+        return p.STRING
 
     @_('ID')
     def expr(self, p):
