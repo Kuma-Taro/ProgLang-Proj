@@ -1,323 +1,369 @@
 from sly import Lexer, Parser
 
-class BrainrotLexer(Lexer):
-    tokens = {
-        # Core tokens
-        STRING, NUMBER, ID, NEWLINE,
-        LPAREN, RPAREN, COLON,
-        PLUS, MINUS, MULT, DIV,
-        EQ, NE, LT, GT, LTE, GTE, ASSIGN,
+class ProgramLexer(Lexer):
+    tokens = {NEWLINE, NAME, NUMBER, STRING, PRINT,
+              IF, ELIF, ELSE, AND, OR, NOT, IS_EQUAL, GREATER_EQUAL, LESS_EQUAL, NOT_EQUAL}
 
-        # Implemented brainrot keywords
-        HAWK, TUAH, GOON, FRFR, YEET, CAP, NOCAP, VIBING, EDGE, ONG
-    }
+    ignore = '\t '
+    literals = {'=', '+', '-', '/', '*', '(', ')',
+                '{', '}', ',', ';', ':', '>', '<', '='}
 
-    ignore = ' \t'
-    ignore_comment = r'\#.*'
+    # Define tokens as regular expressions
+    # (stored as raw strings)
 
-    # Literals
-    STRING = r'\"([^\\\"]|\\.)*\"'
-    NUMBER = r'\d+\.\d*|\d+'
-    NEWLINE = r'\n+'
+    IS_EQUAL = r'=='
+    GREATER_EQUAL = r'>='
+    LESS_EQUAL = r'<='
+    NOT_EQUAL = r'!='
 
-    # Operators
-    PLUS = r'\+'
-    MINUS = r'-'
-    MULT = r'\*'
-    DIV = r'/'
-    EQ = r'=='
-    NE = r'!='
-    LT = r'<'
-    GT = r'>'
-    LTE = r'<='
-    GTE = r'>='
-    ASSIGN = r'='
+    PRINT = r'print'
+    IF = r'if'
+    ELIF = r'elif'
+    ELSE = r'else'
+    AND = r'and'
+    OR = r'or'
+    NOT = r'not'
 
-    # Symbols
-    LPAREN = r'\('
-    RPAREN = r'\)'
-    COLON = r':'
+    NAME = r'[a-zA-Z_][a-zAZ0-9_]*'
+    STRING = r'\".*?\"'
 
-    # Implemented keywords
-    HAWK = r'hawk'
-    TUAH = r'tuah'
-    GOON = r'goon'
-    FRFR = r'frfr'
-    YEET = r'yeet'
-    CAP = r'cap'
-    NOCAP = r'nocap'
-    VIBING = r'vibing'
-    EDGE = r'edge'
-    ONG = r'ong'
+    # Number token
+    @_(r'\d+(\.\d+)?')
+    def NUMBER(self, t):
+        if '.' in t.value:
+            t.value = float(t.value)
+        else:
+            t.value = int(t.value)
+        return t
 
-    # Identifier
-    ID = r'[a-zA-Z_][a-zA-Z0-9_]*'
+    # Comment token
+    @_(r'//.*')
+    def COMMENT(self, t):
+        pass
 
-    def error(self, t):
-        print(f"❌ Brainrot error at line {self.lineno}: Illegal char '{t.value[0]}'")
-        self.index += 1
+    # Newline token(used only for showing
+    # errors in new line)
+    @_(r'\n+')
+    def NEWLINE(self, t):
+        self.lineno += t.value.count('\n')
+        return t
 
-def convert_input(user_input):
-    if user_input.isdigit():
-        return int(user_input)
-    try:
-        return float(user_input)
-    except ValueError:
-        return user_input
+    @_(r'print')
+    def PRINT(self, t):
+        return t
 
-class BrainrotParser(Parser):
-    tokens = BrainrotLexer.tokens
+class ProgramParser(Parser):
+    #tokens are passed from lexer to parser
+    tokens = ProgramLexer.tokens
 
     precedence = (
-        ('left', PLUS, MINUS),
-        ('left', MULT, DIV),
-        ('nonassoc', LT, GT, LTE, GTE, EQ, NE),
+        ('left', AND, OR),
+        ('left', '>', '<', '=', NOT_EQUAL, GREATER_EQUAL, LESS_EQUAL, IS_EQUAL),
+        ('left', '+', '-'),
+        ('left', '*', '/'),
+        ('right', 'UMINUS', NOT),
     )
 
     def __init__(self):
         self.env = {}
-        self.result = None
 
-    @_('statements')
-    def program(self, p):
-        # Filter out None values and flatten any nested lists
-        results = []
-        for stmt in p.statements:
-            if stmt is not None:
-                results.append(stmt)
-        return results
-
-    @_('statement')
-    def statements(self, p):
-        return [p.statement]
-
-    @_('NEWLINE')
-    def statements(self, p):
-        return []
-
-    @_('NEWLINE statements')
-    def statements(self, p):
-        return p.statements
-
-    @_('statement NEWLINE')
-    def statements(self, p):
-        return [p.statement]
+    @_('')  # Empty statement
+    def statement(self, p):
+        pass
 
     @_('statement NEWLINE statements')
     def statements(self, p):
         return [p.statement] + p.statements
 
-    # Statements
-    @_('TUAH LPAREN expr RPAREN')
+    @_('statement')
+    def statements(self, p):
+        return [p.statement]  # Allows single statements
+
+    @_('var_assign')
     def statement(self, p):
-        print(f"➡️ Result: {p.expr}")  # ✅ Always print the result
-        return p.expr
+        return p.var_assign
 
-    @_('HAWK LPAREN RPAREN')
-    def statement(self, p):
-        user_input = input(f"BRAINROT>>")
-        if not user_input:
-            print("Input cannot be empty!")
-            return None
+    @_('NAME "=" expr')
+    def var_assign(self, p):
+        return ('var_assign', p.NAME, p.expr)
 
-        return convert_input(user_input)
+    @_('NAME "=" STRING')
+    def var_assign(self, p):
+        return ('var_assign', p.NAME, p.STRING)
 
-    @_('HAWK LPAREN STRING RPAREN')
-    def statement(self, p):
-        custom_message = p.STRING[1:-1]
-        user_input = input(f"BRAINROT>>{custom_message}")
-
-        if not user_input:
-            print("Input cannot be empty!")
-            return None
-
-        return convert_input(user_input)
-
-    @_('ID ASSIGN expr')
-    def statement(self, p):
-        print(f"DEBUG: Assigning {p.ID} = {p.expr}")
-        self.env[p.ID] = p.expr
-        return None
-
-    @_('ID ASSIGN STRING')
-    def statement(self, p):
-        self.env[p.ID] = p.STRING  # Store string with quotes
-        return None
-
-    # Updated GOON statement to update the environment
-    @_('GOON expr COLON NEWLINE statements ONG')
-    def statement(self, p):
-        print(f"Processing GOON statement: {p}")
-        if p.expr:  # If GOON condition is True
-            for stmt in p.statements:
-                if stmt is not None:
-                    result = stmt  # ✅ Assign each statement but don't return early.
-            print("Is true, iscap should be true then")
-            return result  # Return the result if true
-        return None
-
-    # Handle GOON followed by EDGE (if GOON condition fails)
-    @_('GOON expr COLON NEWLINE statements EDGE COLON NEWLINE statements ONG')
-    def statement(self, p):
-        condition = bool(p.expr)
-        result = None
-
-        if condition:
-            for stmt in p.statements0:  # Handle statements in GOON block
-                if stmt is not None:
-                    result = stmt  # ✅ Assign each statement but don't return early.
-            print("Is true, iscap should be true then")
-            return result
-        else:
-            for stmt in p.statements1:  # Handle statements in EDGE block
-                if stmt is not None:
-                    result = stmt
-            return result
-
-    @_('FRFR ID VIBING expr COLON NEWLINE statements')
-    def statement(self, p):
-        results = []
-        for i in range(p.expr):
-            self.env[p.ID] = i
-            for stmt in p.statements:
-                if stmt is not None:
-                    results.append(stmt)
-        return results
-
-    @_('YEET expr')
+    @_('expr')
     def statement(self, p):
         return p.expr
 
-    # Expressions
-    @_('expr PLUS expr')
-    def expr(self, p):
-        return p.expr0 + p.expr1
-
-    @_('expr MINUS expr')
-    def expr(self, p):
-        return p.expr0 - p.expr1
-
-    @_('expr MULT expr')
-    def expr(self, p):
-        return p.expr0 * p.expr1
-
-    @_('expr DIV expr')
-    def expr(self, p):
-        return p.expr0 / p.expr1
-
-    @_('expr LT expr')
-    def expr(self, p):
-        return p.expr0 < p.expr1
-
-    @_('expr GT expr')
-    def expr(self, p):
-        return p.expr0 > p.expr1
-
-    @_('expr LTE expr')
-    def expr(self, p):
-        return p.expr0 <= p.expr1
-
-    @_('expr GTE expr')
-    def expr(self, p):
-        return p.expr0 >= p.expr1
-
-    @_('expr EQ expr')
-    def expr(self, p):
-        result = p.expr0 == p.expr1
-        print(f"DEBUG: {p.expr0} == {p.expr1} → {result}")  # ✅ Debug output
-        return result
-
-    @_('expr NE expr')
-    def expr(self, p):
-        return p.expr0 != p.expr1
-
-    @_('LPAREN expr RPAREN')
+    @_('"(" expr ")"')
     def expr(self, p):
         return p.expr
+
+    @_('expr "+" expr')
+    def expr(self, p):
+        return ('add', p.expr0, p.expr1)
+
+    @_('expr "-" expr')
+    def expr(self, p):
+        return ('sub', p.expr0, p.expr1)
+
+    @_('expr "*" expr')
+    def expr(self, p):
+        return ('mul', p.expr0, p.expr1)
+
+    @_('expr "/" expr')
+    def expr(self, p):
+        return ('div', p.expr0, p.expr1)
+
+    @_('"-" expr %prec UMINUS')
+    def expr(self, p):
+        return ('neg', p.expr)
+
+    @_('expr ">" expr')
+    def expr(self, p):
+        return ('greater', p.expr0, p.expr1)
+
+    @_('expr "<" expr')
+    def expr(self, p):
+        return ('less', p.expr0, p.expr1)
+
+    @_('expr IS_EQUAL expr')
+    def expr(self, p):
+        return ('is_equal', p.expr0, p.expr1)
+
+    @_('expr NOT_EQUAL expr')
+    def expr(self, p):
+        return ('not_equal', p.expr0, p.expr1)
+
+    @_('expr GREATER_EQUAL expr')
+    def expr(self, p):
+        return ('greater_equal', p.expr0, p.expr1)
+
+    @_('expr LESS_EQUAL expr')
+    def expr(self, p):
+        return ('less_equal', p.expr0, p.expr1)
+
+    @_('expr AND expr')
+    def expr(self, p):
+        return ('and', p.expr0, p.expr1)
+
+    @_('expr OR expr')
+    def expr(self, p):
+        return ('or', p.expr0, p.expr1)
+
+    @_('NOT expr')
+    def expr(self, p):
+        return ('not', p.expr)
+
+    @_('NAME')
+    def expr(self, p):
+        return ('var', p.NAME)
 
     @_('NUMBER')
     def expr(self, p):
-        if '.' in p.NUMBER:
-            return float(p.NUMBER)
-        return int(p.NUMBER)
+        return ('num', p.NUMBER)
 
-    @_('STRING')
-    def expr(self, p):
-        return p.STRING
+    @_('PRINT "(" expr ")"')
+    def statement(self, p):
+        return ('print', p.expr)  # p[1] corresponds to either expr or STRING
 
-    @_('ID')
-    def expr(self, p):
-        return self.env.get(p.ID, 0)
+    @_('PRINT "(" STRING ")"')
+    def statement(self, p):
+        return ('print', p.STRING)  # p[1] corresponds to either expr or STRING
 
-    @_('CAP')
-    def expr(self, p):
-        return "cap"
+    @_('IF "(" expr ")" "{" statements "}"')
+    def statement(self, p):
+        return ('if_stmt', p.expr, p.statements)
 
-    @_('NOCAP')
-    def expr(self, p):
-        return "nocap"
+    @_('IF "(" expr ")" "{" statements "}" ELSE "{" statements "}"')
+    def statement(self, p):
+        return ('if_stmt_else', p.expr, p.statements0, p.statements1)
 
-    @_('HAWK LPAREN RPAREN')
-    def expr(self, p):
-        user_input = input(f"BRAINROT>>")
-        if not user_input:
-            print("Input cannot be empty!")
+    @_('IF "(" expr ")" "{" statements "}" elif_blocks ELSE "{" statements "}"')
+    def statement(self, p):
+        return ('if_stmt_full', p.expr, p.statements0, p.elif_blocks, p.statements1)
+
+    @_('ELIF "(" expr ")" "{" statements "}" elif_blocks')
+    def elif_blocks(self, p):
+        return [('elif_stmt', p.expr, p.statements)] + p.elif_blocks
+
+    @_('ELSE "{" statements "}"')
+    def statement(self, p):
+        return ('else_stmt', p.statements)
+
+    @_('')  # Empty elif block case
+    def elif_blocks(self, p):
+        return []
+
+class ExecuteProgram:
+    def __init__(self, tree, env):
+        self.env = env
+        result = self.walkTree(tree)
+        if isinstance(result, (int, float)):  # Print both int and float results
+            print(result)
+        elif isinstance(result, str) and result.startswith('"'):
+            print(result)
+
+    def walkTree(self, node):
+        if isinstance(node, (int, float)):  # Handle both int and float
+            return node
+        if isinstance(node, str):
+            return node
+
+        if node is None:
             return None
-        return convert_input(user_input)
 
-    @_('HAWK LPAREN STRING RPAREN')
-    def expr(self, p):
-        custom_message = p.STRING[1:-1]
-        user_input = input(f"BRAINROT>>{custom_message}")
-        if not user_input:
-            print("Input cannot be empty!")
-            return None
-        return convert_input(user_input)
+        if node[0] == 'num':
+            return node[1]
 
-# REPL Interface
-lexer = BrainrotLexer()
-parser = BrainrotParser()
+        if node[0] == 'neg':
+            return -self.walkTree(node[1])
 
-print("""
-🔥 BRAINROT COMPILER v1.0 🔥
-Type your code line by line
-'SLAYY' to execute | 'GGS' to quit
-""")
+        if node[0] == 'add':
+            left = self.walkTree(node[1])
+            right = self.walkTree(node[2])
+            # If both are strings, concatenate properly (strip quotes before adding)
+            if isinstance(left, str) and isinstance(right, str):
+                return left.rstrip('"') + right.lstrip('"')  # Concatenate strings without quotes
 
-code_lines = []
-while True:
-    try:
-        line = input("BRAINROT> ").strip()
+            # If one is a string, convert the other to string before adding
+            if isinstance(left, str) or isinstance(right, str):
+                return str(left).strip("\"") + str(right).strip("\"")
 
-        if line.lower() == "ggs":
-            print("Compilation finished! GG! 🎮")
-            break
-        elif line.lower() == "slayy":
-            if not code_lines:
-                print("No code to execute!")
-                continue
+            return left + right
 
-            full_code = "\n".join(code_lines)
+        elif node[0] == 'sub':
+            return self.walkTree(node[1]) - self.walkTree(node[2])
 
-            # Debug: Print token types before parsing
-            tokens = list(lexer.tokenize(full_code + "\n"))
-            print([t.type for t in tokens])  # ✅ Add this line
+        elif node[0] == 'mul':
+            return self.walkTree(node[1]) * self.walkTree(node[2])
+
+        elif node[0] == 'div':
+            denominator = self.walkTree(node[2])
+            if denominator == 0:
+                print("Error: Division by zero")
+                return None
+            return self.walkTree(node[1]) / denominator  # Always return float
+
+        if node[0] == 'var_assign':
+            self.env[node[1]] = self.walkTree(node[2])
+            return node[1]
+
+        if node[0] == 'greater':
+            return self.walkTree(node[1]) > self.walkTree(node[2])
+
+        elif node[0] == 'less':
+            return self.walkTree(node[1]) < self.walkTree(node[2])
+
+        elif node[0] == 'is_equal':
+            return self.walkTree(node[1]) == self.walkTree(node[2])
+
+        elif node[0] == 'not_equal':
+            return self.walkTree(node[1]) != self.walkTree(node[2])
+
+        elif node[0] == 'greater_equal':
+            return self.walkTree(node[1]) >= self.walkTree(node[2])
+
+        elif node[0] == 'less_equal':
+            return self.walkTree(node[1]) <= self.walkTree(node[2])
+
+        if node[0] == 'and':
+            return self.walkTree(node[1]) and self.walkTree(node[2])
+
+        elif node[0] == 'or':
+            return self.walkTree(node[1]) or self.walkTree(node[2])
+
+        elif node[0] == 'not':
+            return not self.walkTree(node[1])
+
+        if node[0] == 'var':
             try:
-                result = parser.parse(lexer.tokenize(full_code + "\n"))
-                if result:
-                    # Changed to print the actual result instead of the list
-                    if isinstance(result, str):
-                        print(f"➡️ Result: {result}")
-                    elif isinstance(result, list) and len(result) > 0:
-                        print(f"➡️ Result: {result[0]}")
-                    else:
-                        print(f"➡️ Result: {result}")
-            except Exception as e:
-                print(f"💥 Runtime error: {str(e)}")
-            code_lines = []
-        else:
-            if line:
-                code_lines.append(line)
-    except KeyboardInterrupt:
-        print("\nEmergency exit! GG!")
-        break
+                return self.env[node[1]]
+            except LookupError:
+                print(f"Undefined variable '{node[1]}' found!")
+                return None
+
+        if node[0] == 'print':
+            result = self.walkTree(node[1])
+            print(result)
+            return None
+
+        if node[0] == 'if_stmt':
+            condition = self.walkTree(node[1])
+            #print(f"Debug: IF condition evaluated to {condition}")
+            if condition:
+                for stmt in node[2]:  # Iterate through statements inside `{}`
+                    self.walkTree(stmt)  # Execute each statement
+                return  # Prevent unnecessary return values
+
+        # Apply similar logic to elif and else blocks
+        if node[0] == 'elif_stmt':
+            condition = self.walkTree(node[1])
+            if condition:
+                for stmt in node[2]:
+                    self.walkTree(stmt)
+                return
+
+        if node[0] == 'else_stmt':
+            for stmt in node[1]:  # Ensure the else block executes statements
+                self.walkTree(stmt)
+            return
+
+        if node[0] == 'if_stmt_else':
+            condition = self.walkTree(node[1])
+            #print(f"Debug: Evaluating IF condition -> {condition}")  # Debug
+
+            if condition:
+                for stmt in node[2]:  # Execute the `if` block
+                    self.walkTree(stmt)
+            else:
+                #print("Debug: Executing ELSE block")  # Debug
+                for stmt in node[3]:  # Execute the `else` block
+                    self.walkTree(stmt)
+            return
+
+        if node[0] == 'if_stmt_full':
+            condition = self.walkTree(node[1])
+            if condition:
+                for stmt in node[2]:
+                    self.walkTree(stmt)
+                return
+
+            for elif_stmt in node[3]:
+                elif_condition = self.walkTree(elif_stmt[1])
+                if elif_condition:
+                    for stmt in elif_stmt[2]:
+                        self.walkTree(stmt)
+                    return
+
+            for stmt in node[4]:  # Execute `else` block if no condition matched
+                self.walkTree(stmt)
+            return
+
+if __name__ == '__main__':
+    lexer = ProgramLexer()
+    parser = ProgramParser()
+    env = {}
+    buffer = []  # Store multiple lines
+
+    while True:
+        try:
+            line = input('SK.bd> ')
+
+            if line.strip().lower() == 'run':  # If user types "run", execute
+                if buffer:
+                    code = "\n".join(buffer)  # Combine all lines
+                    tree = parser.parse(lexer.tokenize(code))
+                    ExecuteProgram(tree, env)
+                    buffer = []  # Clear buffer after execution
+                continue  # Skip processing "run" itself
+
+            if line.strip():  # Ignore empty lines
+                buffer.append(line)  # Add to buffer
+
+        except EOFError:
+            break
+        except KeyboardInterrupt:
+            print("\nExiting SK.bd...")
+            break  # Exit safely
+
